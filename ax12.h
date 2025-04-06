@@ -1,22 +1,3 @@
-/*
-  .h - ArbotiX library for AX/RX control.
-  Copyright (c) 2008-2011 Michael E. Ferguson.  All right reserved.
-
-  This library is free software; you can redistribute it and/or
-  modify it under the terms of the GNU Lesser General Public
-  License as published by the Free Software Foundation; either
-  version 2.1 of the License, or (at your option) any later version.
-
-  This library is distributed in the hope that it will be useful,
-  but WITHOUT ANY WARRANTY; without even the implied warranty of
-  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
-  Lesser General Public License for more details.
-
-  You should have received a copy of the GNU Lesser General Public
-  License along with this library; if not, write to the Free Software
-  Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
-*/
-
 // TODO
 //  is there a better approach for the constants?
 //  add 'nice' interfact for getting and setting all registers including conversion to sensible quantities
@@ -126,77 +107,99 @@ struct Error {
   };
 };
 
-void init(uint32_t baud);
+class AX12Bus {
+  public:
+  void init(uint32_t baud);
 
-void setTX();
-void setRX();
+  void setTX();
+  void setRX();
 
-void write(uint8_t data);
-void writeBufferOut(const uint8_t* buffer, uint8_t length);
+  void write(uint8_t data);
+  void writeBufferOut(const uint8_t* buffer, uint8_t length);
 
-const uint8_t* getRxBuffer();
-const uint8_t* getRxIntBuffer();
+  const uint8_t* getRxBuffer();
+  const uint8_t* getRxIntBuffer();
 
-bool readResponse(uint8_t length);
-int16_t getRegister(uint8_t id, uint8_t regstart, uint8_t data_length);
-void setRegister(uint8_t id, uint8_t regstart, uint8_t data, bool read_response);
-void setRegister(uint8_t id, uint8_t regstart, uint16_t data, bool read_response);
+  bool readResponse(uint8_t length);
+  int16_t getRegister(uint8_t id, uint8_t regstart, uint8_t data_length);
+  void setRegister(uint8_t id, uint8_t regstart, uint8_t data, bool read_response);
+  void setRegister(uint8_t id, uint8_t regstart, uint16_t data, bool read_response);
 
-bool ping(uint8_t id);
-void setStagedInstruction(uint8_t id, uint8_t starting_register, uint8_t data, bool read_response);
-void setStagedInstruction(uint8_t id, uint8_t starting_register, uint16_t data, bool read_response);
-void executeStagedInstructions();
+  bool ping(uint8_t id);
+  void setStagedInstruction(uint8_t id, uint8_t starting_register, uint8_t data, bool read_response);
+  void setStagedInstruction(uint8_t id, uint8_t starting_register, uint16_t data, bool read_response);
+  void executeStagedInstructions();
 
-void setupSyncWrite(uint8_t num_servos, uint8_t starting_register, uint8_t data_length, uint8_t* tx_buffer);
-bool addToSyncWrite(uint8_t id, uint8_t data); // single byte version
-bool addToSyncWrite(uint8_t id, uint16_t data); // double byte version
-void addToSyncWrite(uint8_t id, const uint8_t* data); // for more than 2 bytes
-bool executeSyncWrite();
+  void setupSyncWrite(uint8_t num_servos, uint8_t starting_register, uint8_t data_length, uint8_t* tx_buffer);
+  bool addToSyncWrite(uint8_t id, uint8_t data); // single byte version
+  bool addToSyncWrite(uint8_t id, uint16_t data); // double byte version
+  void addToSyncWrite(uint8_t id, const uint8_t* data); // for more than 2 bytes
+  bool executeSyncWrite();
 
-uint8_t getLastError();
+  uint8_t getLastError();
 
-// Functions built on top of 'raw' instruction functions
-void setStatusReturnLevel(uint8_t id, StatusReturnLevel::type srl);
+  // Functions built on top of 'raw' instruction functions
+  void setStatusReturnLevel(uint8_t id, StatusReturnLevel::type srl);
 
-void enableTorque(uint8_t servo_id);
-void enableTorque();
-void disableTorque(uint8_t servo_id);
-void disableTorque();
+  void enableTorque(uint8_t servo_id);
+  void enableTorque();
+  void disableTorque(uint8_t servo_id);
+  void disableTorque();
 
-// TODO Read registers
-//  May want to change the way that getRegister works first i.e. not fixed to return int16_t and -1 on failure
-//uint16_t GetModelNumber(uint8_t servo_id);
-//uint8_t GetFirmwareVersion(uint8_t servo_id);
-//uint8_t GetID(uint8_t servo_id);
-//uint8_t GetBaudRate(uint8_t servo_id);
-//uint8_t GetReturnDelayTime(uint8_t servo_id);
-//uint16_t GetCWAngleLimit(uint8_t servo_id);
-//uint16_t GetCCWAngleLimit(uint8_t servo_id);
-//uint8_t GetTemperatureLimitMaximum(uint8_t servo_id);
-//uint8_t GetMinVoltageLimit(uint8_t servo_id);
-//uint8_t GetMaxVoltageLimit(uint8_t servo_id);
-//uint16_t GetMaxTorque(uint8_t servo_id);
-//uint8_t GetStatusReturnLevel(uint8_t servo_id);
-//uint8_t GetAlarmLED(uint8_t servo_id);
-//uint8_t GetShutdown(uint8_t servo_id);
-//uint8_t GetTorqueEnable(uint8_t servo_id);
-//uint8_t GetLEDStatus(uint8_t servo_id);
-//uint8_t GetCWComplianceMargin(uint8_t servo_id);
-//uint8_t GetCCWComplianceMargin(uint8_t servo_id);
-//uint8_t GetCWComplianceSlope(uint8_t servo_id);
-//uint8_t GetCCWComplianceSlope(uint8_t servo_id);
-//uint16_t GetGoalPosition(uint8_t servo_id);
-//uint16_t GetMovingSpeed(uint8_t servo_id);
-//uint16_t GetTorqueLimit(uint8_t servo_id);
-//uint16_t GetPresentPosition(uint8_t servo_id);
-//uint16_t GetPresentSpeed(uint8_t servo_id);
-//uint16_t GetPresentLoad(uint8_t servo_id);
-//uint8_t GetPresentVoltage(uint8_t servo_id);
-//uint8_t GetPresentTemperature(uint8_t servo_id);
-//uint8_t GetRegistered(uint8_t servo_id);
-//uint8_t GetMoving(uint8_t servo_id);
-//uint8_t GetLock(uint8_t servo_id);
-//uint16_t GetPunch(uint8_t servo_id);
+  // TODO Read registers
+  //  May want to change the way that getRegister works first i.e. not fixed to return int16_t and -1 on failure
+  //uint16_t GetModelNumber(uint8_t servo_id);
+  //uint8_t GetFirmwareVersion(uint8_t servo_id);
+  //uint8_t GetID(uint8_t servo_id);
+  //uint8_t GetBaudRate(uint8_t servo_id);
+  //uint8_t GetReturnDelayTime(uint8_t servo_id);
+  //uint16_t GetCWAngleLimit(uint8_t servo_id);
+  //uint16_t GetCCWAngleLimit(uint8_t servo_id);
+  //uint8_t GetTemperatureLimitMaximum(uint8_t servo_id);
+  //uint8_t GetMinVoltageLimit(uint8_t servo_id);
+  //uint8_t GetMaxVoltageLimit(uint8_t servo_id);
+  //uint16_t GetMaxTorque(uint8_t servo_id);
+  //uint8_t GetStatusReturnLevel(uint8_t servo_id);
+  //uint8_t GetAlarmLED(uint8_t servo_id);
+  //uint8_t GetShutdown(uint8_t servo_id);
+  //uint8_t GetTorqueEnable(uint8_t servo_id);
+  //uint8_t GetLEDStatus(uint8_t servo_id);
+  //uint8_t GetCWComplianceMargin(uint8_t servo_id);
+  //uint8_t GetCCWComplianceMargin(uint8_t servo_id);
+  //uint8_t GetCWComplianceSlope(uint8_t servo_id);
+  //uint8_t GetCCWComplianceSlope(uint8_t servo_id);
+  //uint16_t GetGoalPosition(uint8_t servo_id);
+  //uint16_t GetMovingSpeed(uint8_t servo_id);
+  //uint16_t GetTorqueLimit(uint8_t servo_id);
+  //uint16_t GetPresentPosition(uint8_t servo_id);
+  //uint16_t GetPresentSpeed(uint8_t servo_id);
+  //uint16_t GetPresentLoad(uint8_t servo_id);
+  //uint8_t GetPresentVoltage(uint8_t servo_id);
+  //uint8_t GetPresentTemperature(uint8_t servo_id);
+  //uint8_t GetRegistered(uint8_t servo_id);
+  //uint8_t GetMoving(uint8_t servo_id);
+  //uint8_t GetLock(uint8_t servo_id);
+  //uint16_t GetPunch(uint8_t servo_id);
+
+  uint8_t rx_buffer[kBufferSize]; // used in readResponse and getRegister
+  uint8_t rx_int_buffer[kBufferSize]; // also used in readResponse
+
+  // making these volatile keeps the compiler from optimizing loops of available()
+  // (although I'm unclear why rx_int_buffer_idx needs to be volatile)
+  volatile uint8_t rx_buffer_idx;
+  volatile uint8_t rx_int_buffer_idx;
+
+  // For sync write
+  uint8_t sync_write_num_servos_ = 0;
+  uint8_t sync_write_data_length_ = 0;
+  uint8_t sync_write_starting_register_;
+  uint8_t* sync_write_tx_buffer_;
+  uint8_t sync_write_tx_buffer_idx_;
+
+  uint8_t rx_error;
+};
+
+
 
 } // namespace
 
