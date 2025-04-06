@@ -58,6 +58,7 @@ void setTX() {
  * 
  */
 void setRX() {
+  while (bit_is_clear(UCSR1A, UDRE1)) {}; // wait for tx buffer to be ready to receive new data i.e. all previous data has been sent
   bitClear(UCSR1B, TXEN1); // disable TX on Serial1
   bitSet(UCSR1B, RXCIE1); // enable Receive Complete Interrupt
   bitSet(UCSR1B, RXEN1);  // enable RX on Serial1
@@ -73,8 +74,8 @@ void setRX() {
  * @param data 
  */
 void write(uint8_t data) {
-  while (bit_is_clear(UCSR1A, UDRE1)) {};
-    UDR1 = data;
+  while (bit_is_clear(UCSR1A, UDRE1)) {}; // wait for tx buffer to be ready to receive new data
+  UDR1 = data;
 }
 
 /**  */
@@ -169,6 +170,13 @@ void init(const uint32_t baud) {
   UBRR1H = (F_CPU / (8 * baud) - 1) >> 8; // baud rate register high byte
   UBRR1L = (F_CPU / (8 * baud) - 1); // baud rate register low byte
   bitSet(UCSR1A, U2X1); // set double speed
+  
+  // Not sure any need to specify using double speed
+  // Can just do like this
+  // UBRR1H = (F_CPU / (16 * baud) - 1) >> 8;
+  // UBRR1L = (F_CPU / (16 * baud) - 1);
+  
+  
   rx_int_buffer_idx = 0;
   // set RX as pull up to hold bus to a known level
   PORTD |= (1 << 2);
