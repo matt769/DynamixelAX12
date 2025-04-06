@@ -1,10 +1,3 @@
-// TODO
-//  is there a better approach for the constants?
-//  add 'nice' interfact for getting and setting all registers including conversion to sensible quantities
-//  have all positions as SIGNED int? since they have to be 16bit anyway
-//  change functions to take enums as enums (not ints)
-
-
 #ifndef DYNAMIXEL_AX12_H
 #define DYNAMIXEL_AX12_H
 
@@ -116,12 +109,12 @@ class AX12Bus {
   // const uint8_t* getRxIntBuffer();
 
   int16_t getRegister(uint8_t id, uint8_t regstart, uint8_t data_length);
-  void setRegister(uint8_t id, uint8_t regstart, uint8_t data, bool read_response);
-  void setRegister(uint8_t id, uint8_t regstart, uint16_t data, bool read_response);
+  bool setRegister(uint8_t id, uint8_t regstart, uint8_t data, bool read_response);
+  bool setRegister(uint8_t id, uint8_t regstart, uint16_t data, bool read_response);
 
   bool ping(uint8_t id);
-  void setStagedInstruction(uint8_t id, uint8_t starting_register, uint8_t data, bool read_response);
-  void setStagedInstruction(uint8_t id, uint8_t starting_register, uint16_t data, bool read_response);
+  bool setStagedInstruction(uint8_t id, uint8_t starting_register, uint8_t data, bool read_response);
+  bool setStagedInstruction(uint8_t id, uint8_t starting_register, uint16_t data, bool read_response);
   void executeStagedInstructions();
 
   void setupSyncWrite(uint8_t num_servos, uint8_t starting_register, uint8_t data_length, uint8_t* tx_buffer);

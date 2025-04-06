@@ -52,4 +52,3 @@ Read register and response
 
 ### Sync write
 ![response](docs/sync_write.png)  
-

@@ -1,10 +1,9 @@
+#include <Arduino.h>
 #include <ax12.h>
 
 namespace ax12 =  dynamixel_ax12;
 
-constexpr uint8_t kNumServos = 18;
-
-void printBuffer(uint8_t* buffer, uint8_t length) {
+void printBuffer(const uint8_t* buffer, const uint8_t length) {
   for (int i=0;i<length;i++) {
     Serial.print(buffer[i]);
     Serial.print('\t');
@@ -15,97 +14,102 @@ void printBuffer(uint8_t* buffer, uint8_t length) {
 
 void setup() {
   // put your setup code here, to run once:
-  ax12::init(1000000);
+  ax12::AX12Bus ax12bus(Serial3, 1000000, 7);
   Serial.begin(115200);
 
   // Useful for debugging to be able to inspect the buffers
-  uint8_t* rx_buffer = ax12::getRxBuffer();
-  uint8_t* rx_int_buffer = ax12::getRxIntBuffer();
+  const uint8_t* rx_buffer = ax12bus.getRxBuffer();
 
 
   // 1. Ping
-  ax12::ping(1);
-  printBuffer(rx_buffer, 6);
-
-
-  int16_t current_position[18];
-
-  // 2. Read registers (positions)
-  for (int servo_id = 1; servo_id <= kNumServos; servo_id++) {
-    uint16_t pos = ax12::getRegister(servo_id, RegisterPosition::AX_PRESENT_POSITION_L, 2);
-    Serial.println(pos);
-    printBuffer(rx_buffer, 8);
-    if (pos > 1023) {
-      Serial.println("Read error"); {
-        while(1);
-      }
-    }
-    uint8_t idx = servo_id-1;
-    current_position[idx] = (int16_t)pos;
+  uint8_t servo_id = 5;
+  bool ping_result = ax12bus.ping(servo_id);
+  Serial.print("Pinged servo id ");
+  Serial.print(servo_id);
+  Serial.print(". Response: ");
+  Serial.println(ping_result);
+  if (!ping_result) {
+    Serial.println("Error. Stopping.");
+    printBuffer(rx_buffer, 6);
   }
+ 
+  // 2. Read registers (positions)
+  int16_t current_position = ax12bus.getRegister(servo_id, ax12::RegisterPosition::AX_PRESENT_POSITION_L, 2);
+  Serial.print("Reading position of servo id ");
+  Serial.print(servo_id);
+  Serial.print(". Response: ");
+  Serial.println(current_position);
+  if (current_position < 0) {
+      Serial.println("Error. Stopping.");
+      printBuffer(rx_buffer, 8);
+      while(true);
+  }
+
+  // Also read the current return level
+  int16_t return_level = ax12bus.getRegister(servo_id, ax12::RegisterPosition::AX_RETURN_LEVEL, 1);
+  if (return_level < 0) {
+      Serial.println("Error. Stopping.");
+      printBuffer(rx_buffer, 8);
+      while(true);
+  }
+  bool read_response_for_reads = return_level > 0;
+  bool read_response_for_others = return_level > 1;
 
   // 3. Write register (position)
-  const uint8_t servo_id = 12;
-  int16_t goal_pos = 800;
-  int16_t diff = goal_pos - current_position[servo_id-1];
-  const int16_t num_steps = 40;
-  int16_t inc = diff / num_steps;
-  for (uint8_t step = 0; step < num_steps; step++) {
-    current_position[servo_id-1] += inc;
-    ax12::setRegister(servo_id, RegisterPosition::AX_GOAL_POSITION_L, (uint16_t)current_position[servo_id-1], true);
-    printBuffer(rx_buffer, 6);
-    delay(100);
+  int16_t change = current_position > 511 ? -20 : 20;
+  uint16_t target_position = current_position + change;
+
+  const bool set_reg_result = ax12bus.setRegister(servo_id, ax12::RegisterPosition::AX_GOAL_POSITION_L, target_position, read_response_for_others);
+  Serial.print("Writing position of servo id ");
+  Serial.print(servo_id);
+  Serial.print(". Response: ");
+  Serial.println(set_reg_result);
+  if (set_reg_result) {
+      current_position = target_position;
+  } else {
+      Serial.println("Error. Stopping.");
+      printBuffer(rx_buffer, 6);
+      while(true);
   }
-  goal_pos = 200;
-  diff = goal_pos - current_position[servo_id];
-  inc = diff / num_steps;
-  for (uint8_t step = 0; step < num_steps; step++) {
-    current_position[servo_id-1] += inc;
-    ax12::setRegister(servo_id, RegisterPosition::AX_GOAL_POSITION_L, (uint16_t)current_position[servo_id-1], true);
-    printBuffer(rx_buffer, 6);
-    delay(100);
-  }
-  delay(1000);
 
   // 4. Staged write (position)
-  for (uint8_t idx = 0; idx < 2; idx++) {
-    uint8_t servo_id = idx+1;
-    int16_t change = current_position[idx] > 511 ? -20 : 20;
-    uint16_t new_pos = current_position[idx] + change;
-    ax12::setStagedInstruction(servo_id, RegisterPosition::AX_GOAL_POSITION_L, new_pos, true);
-    Serial.print("Set staged instruction for servo ");
-    Serial.print(servo_id);
-    Serial.print(" to move to ");
-    Serial.println(new_pos);
-    Serial.println(getLastError());
-    printBuffer(rx_buffer, 6);
-  }
+  int16_t change2 = current_position > 511 ? -20 : 20;
+  uint16_t target_position2 = current_position + change2;
+  bool set_staged_result = ax12bus.setStagedInstruction(servo_id, ax12::RegisterPosition::AX_GOAL_POSITION_L, target_position2, read_response_for_others);
+  Serial.print("Set staged instruction for servo ");
+  Serial.print(servo_id);
+  Serial.print(" to move to ");
+  Serial.println(target_position2);
+
   // 5. And then trigger (action)
   delay(1000);
-  ax12::executeStagedInstructions();
-  printBuffer(rx_buffer, 6);
+  Serial.print("Triggering staged instructions");
+  ax12bus.executeStagedInstructions();
 
   // 6. Factory reset - not going to implement or test this because I dont want to have to re-set the IDs
-
+  //  since I have all my servos set into a robot currently
 
   // 7. Sync write
-  const uint8_t num_servos = 2;
+  Serial.println("Setting up synced write");
+  int16_t change3 = target_position2 > 511 ? -20 : 20;
+  uint16_t target_position3 = target_position2 + change3;
+
+  const uint8_t num_servos = 1;
   const uint8_t data_length = 2;
-  const uint8_t starting_register = RegisterPosition::AX_GOAL_POSITION_L;
+  const uint8_t starting_register = ax12::RegisterPosition::AX_GOAL_POSITION_L;
   const uint8_t buffer_size = num_servos * (data_length+1) + 4;
   uint8_t buffer[buffer_size];
-  ax12::setupSyncWrite(num_servos, starting_register, data_length, buffer);
-  uint8_t starting_servo = 11;
+  ax12bus.setupSyncWrite(num_servos, starting_register, data_length, buffer);
+  uint8_t starting_servo = 4;
   for (uint8_t servo_id = starting_servo; servo_id < starting_servo + num_servos; servo_id++) {
-    uint16_t new_pos = small_position_change(current_position[servo_id-1]);
-    ax12::addToSyncWrite(servo_id, new_pos);
+    ax12bus.addToSyncWrite(servo_id, target_position3);
   }
-  printBuffer(buffer, buffer_size);
-  bool res = ax12::executeSyncWrite();
-  Serial.println(res);
+  Serial.print("Executing synced write");
+  bool res = ax12bus.executeSyncWrite();
 
 }
 
 
 
 void loop() {}
+
