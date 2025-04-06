@@ -109,18 +109,12 @@ struct Error {
 
 class AX12Bus {
   public:
-  void init(uint32_t baud);
-
-  void setTX();
-  void setRX();
-
-  void write(uint8_t data);
-  void writeBufferOut(const uint8_t* buffer, uint8_t length);
+  AX12Bus(HardwareSerial& serial, uint32_t buad_rate, uint8_t direction_pin);
+  void setDirectionPinOutputLevelForTx(uint8_t level);
 
   const uint8_t* getRxBuffer();
-  const uint8_t* getRxIntBuffer();
+  // const uint8_t* getRxIntBuffer();
 
-  bool readResponse(uint8_t length);
   int16_t getRegister(uint8_t id, uint8_t regstart, uint8_t data_length);
   void setRegister(uint8_t id, uint8_t regstart, uint8_t data, bool read_response);
   void setRegister(uint8_t id, uint8_t regstart, uint16_t data, bool read_response);
@@ -181,13 +175,24 @@ class AX12Bus {
   //uint8_t GetLock(uint8_t servo_id);
   //uint16_t GetPunch(uint8_t servo_id);
 
-  uint8_t rx_buffer[kBufferSize]; // used in readResponse and getRegister
-  uint8_t rx_int_buffer[kBufferSize]; // also used in readResponse
 
-  // making these volatile keeps the compiler from optimizing loops of available()
-  // (although I'm unclear why rx_int_buffer_idx needs to be volatile)
-  volatile uint8_t rx_buffer_idx;
-  volatile uint8_t rx_int_buffer_idx;
+  private:
+
+  void setTX();
+  void setRX();
+
+  // void write(uint8_t data);
+  void writeBufferOut(const uint8_t* buffer, uint8_t length);
+
+  bool readResponse(uint8_t length);
+
+  uint8_t rx_buffer[kBufferSize]; // used in readResponse and getRegister
+  // uint8_t rx_int_buffer[kBufferSize]; // also used in readResponse
+
+  // // making these volatile keeps the compiler from optimizing loops of available()
+  // // (although I'm unclear why rx_int_buffer_idx needs to be volatile)
+  // volatile uint8_t rx_buffer_idx;
+  // volatile uint8_t rx_int_buffer_idx;
 
   // For sync write
   uint8_t sync_write_num_servos_ = 0;
@@ -197,6 +202,10 @@ class AX12Bus {
   uint8_t sync_write_tx_buffer_idx_;
 
   uint8_t rx_error;
+
+  HardwareSerial& serial_;  
+  uint8_t direction_pin_;
+  uint8_t tx_level_ = LOW;
 };
 
 

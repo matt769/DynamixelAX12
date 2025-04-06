@@ -1,47 +1,35 @@
 #include "ax12.h"
 
-/******************************************************************************
- * Hardware Serial Level, this uses the same stuff as Serial1, therefore 
- *  you should not use the Arduino Serial1 library.
- */
-
 namespace dynamixel_ax12 {
 
 
 /**
- * @brief Enable transmission (emulating half-duplex on ATMega644 without an RTS line)
+ * @brief Enable the tx line / disable rx line
  * 
  */
 void AX12Bus::setTX() {
-  bitClear(UCSR1B, RXEN1); // disable RX on Serial1
-  bitSet(UCSR1B, TXEN1); // enable TX on Serial1
-  bitClear(UCSR1B, RXCIE1); // clear Receive Complete Interrupt
+  digitalWrite(direction_pin_, tx_level_);
 }
 
 /**
- * @brief Enable receiving (emulating half-duplex on ATMega644 without an RTS line)
+ * @brief Enable the rx line / diable tx line
  * 
  */
 void AX12Bus::setRX() {
-  while (bit_is_clear(UCSR1A, UDRE1)) {}; // wait for tx buffer to be ready to receive new data i.e. all previous data has been sent
-  bitClear(UCSR1B, TXEN1); // disable TX on Serial1
-  bitSet(UCSR1B, RXCIE1); // enable Receive Complete Interrupt
-  bitSet(UCSR1B, RXEN1);  // enable RX on Serial1
-  rx_int_buffer_idx = 0;
-  rx_buffer_idx = 0;
+  serial_.flush(); //ensure any transmissions have been fully sent
+  digitalWrite(direction_pin_, !tx_level_);
 }
 
-// Could we not use the standard serial functions?
-// Seems like they are (deliberately) disabled in the arbotix 'core'
-/**
- * @brief Writes a character to the Serial1 UART transmit buffer
- * 
- * @param data 
- */
-void AX12Bus::write(uint8_t data) {
-  while (bit_is_clear(UCSR1A, UDRE1)) {}; // wait for tx buffer to be ready to receive new data
-  UDR1 = data;
-}
+
+// /**
+//  * @brief Writes a character to the Serial1 UART transmit buffer
+//  * 
+//  * @param data 
+//  */
+// void AX12Bus::write(uint8_t data) {
+//   while (bit_is_clear(UCSR1A, UDRE1)) {}; // wait for tx buffer to be ready to receive new data
+//   UDR1 = data;
+// }
 
 /**  */
 /**
@@ -84,66 +72,48 @@ uint8_t AX12Bus::getLastError() { return rx_error; }
  * @return false otherwise (timeout or failed checksum)
  */
 bool AX12Bus::readResponse(const uint8_t length) {
-  uint8_t byte_count = 0;
-  bool timeout = false;
-  volatile uint8_t rx_int_buffer_idx_last = 0; // even though rx_int_buffer_idx is volatile, this must be too
+  // uint8_t byte_count = 0;
+  // bool timeout = false;
+  // volatile uint8_t rx_int_buffer_idx_last = 0; // even though rx_int_buffer_idx is volatile, this must be too
 
-  while (byte_count < length) {
-    uint32_t ulCounter = 0;
-    // Wait until the buffer index been incremented (by serial receive interrupt)
-    while (rx_int_buffer_idx_last == rx_int_buffer_idx) {
-      // But if wait too long, assume no more data coming
-      if (ulCounter++ > kTimeoutCycles) {
-        timeout = true;
-        break; // TODO or just return false immediately?
-      }
+  uint8_t rx_idx = 0;
+  uint32_t start_time_us = micros();
+  while (rx_idx < length && micros() - start_time_us < 1500UL) {
+    if (serial_.available()) {
+      rx_buffer[rx_idx++] = serial_.read();
     }
-    if (timeout) break;
-
-    // Copy new byte, then test if ok
-    rx_buffer[byte_count] = rx_int_buffer[rx_int_buffer_idx_last];
-    if ((byte_count == 0) && (rx_buffer[0] != 0xff)) {
-      // bad data, don't increment byte_count
-    } else if ((byte_count == 2) && (rx_buffer[2] == 0xff)) {
-      // bad data, don't increment byte_count (technically this was good, and an earlier identical byte was bad)
-    } else {
-      byte_count++;
-    }
-
-    rx_int_buffer_idx_last++; // assume that rx_int_buffer_idx hasn't received more than 1 byte since last time
+  }
+  if (rx_idx < length) {
+    return false; // timeout
   }
 
-  // data plus checksum should add to 255
-  uint8_t checksum = 0;
-  for (uint8_t idx = 2; idx < byte_count; idx++) {
-    checksum += rx_buffer[idx];
+  // data plus checksum byte (final byte in status return packet) should add to 255
+  uint8_t total = 0;
+  for (uint8_t idx = 2; idx < length; idx++) {
+    total += rx_buffer[idx];
   }
 
-  return checksum == 255;
+  return total == 255;
 }
 
 
 /**
- * @brief Initialise UART1 on the ATMega644 and set up some buffers
+ * @brief TODO
  * 
  * @param baud 
  */
-void AX12Bus::init(const uint32_t baud) {
-  UBRR1H = (F_CPU / (8 * baud) - 1) >> 8; // baud rate register high byte
-  UBRR1L = (F_CPU / (8 * baud) - 1); // baud rate register low byte
-  bitSet(UCSR1A, U2X1); // set double speed
-  
-  // Not sure any need to specify using double speed
-  // Can just do like this
-  // UBRR1H = (F_CPU / (16 * baud) - 1) >> 8;
-  // UBRR1L = (F_CPU / (16 * baud) - 1);
-  
-  
-  rx_int_buffer_idx = 0;
-  // set RX as pull up to hold bus to a known level
-  PORTD |= (1 << 2);
+AX12Bus::AX12Bus(HardwareSerial& serial, const uint32_t baud_rate, const uint8_t direction_pin) :
+  serial_(serial), direction_pin_(direction_pin)
+{
+  serial_.begin(baud_rate);
+  pinMode(direction_pin_, OUTPUT);
   setRX();
 }
+
+void AX12Bus::setDirectionPinOutputLevelForTx(uint8_t level) {
+  tx_level_ = level;
+}
+
 
 /**
  * @brief Ping a servo and read its status return packet
@@ -170,20 +140,23 @@ bool AX12Bus::ping(const uint8_t id) {
 }
 
 /**
- * @brief Write the content of a buffer out to Serial1, adding preceding 0xFF 0xFF, and trailing checksum.
+ * @brief Write the contents of a buffer out, adding preceding 0xFF 0xFF, and trailing checksum.
  * @param buffer Containing the instruction packet, excluding checksum
  * @param length Length of buffer
  */
 void AX12Bus::writeBufferOut(const uint8_t* buffer, const uint8_t length) {
   setTX();
-  write(0xFF);
-  write(0xFF);
+
+  serial_.write(0xFF);
+  serial_.write(0xFF);
   uint8_t checksum = 0;
   for (uint8_t idx = 0; idx < length; idx++) {
-    write(buffer[idx]);
+    serial_.write(buffer[idx]);
     checksum += buffer[idx];
   }
-  write(~checksum);
+  serial_.write(~checksum);
+
+  serial_.flush(); // wait until everything has actually been transmitted
   setRX();
 }
 
@@ -487,21 +460,21 @@ bool AX12Bus::executeSyncWrite() {
 
 
 
-/**
- * @brief pointer to rx_buffer for debugging
- * @return
- */
-const uint8_t* AX12Bus::getRxBuffer() {
-  return rx_buffer;
-}
+// /**
+//  * @brief pointer to rx_buffer for debugging
+//  * @return
+//  */
+// const uint8_t* AX12Bus::getRxBuffer() {
+//   return rx_buffer;
+// }
 
-/**
- * @brief pointer to rx_int_buffer for debugging
- * @return
- */
-const uint8_t* AX12Bus::getRxIntBuffer() {
-  return rx_int_buffer;
-}
+// /**
+//  * @brief pointer to rx_int_buffer for debugging
+//  * @return
+//  */
+// const uint8_t* AX12Bus::getRxIntBuffer() {
+//   return rx_int_buffer;
+// }
 
 void AX12Bus::setStatusReturnLevel(const uint8_t id, const StatusReturnLevel::type srl) {
   setRegister(id, RegisterPosition::AX_RETURN_LEVEL, static_cast<uint8_t>(srl), false);
