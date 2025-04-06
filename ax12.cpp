@@ -1,22 +1,3 @@
-/*
-  ax12.cpp - ArbotiX library for AX/RX control.
-  Copyright (c) 2008-2011 Michael E. Ferguson.  All right reserved.
-
-  This library is free software; you can redistribute it and/or
-  modify it under the terms of the GNU Lesser General Public
-  License as published by the Free Software Foundation; either
-  version 2.1 of the License, or (at your option) any later version.
-
-  This library is distributed in the hope that it will be useful,
-  but WITHOUT ANY WARRANTY; without even the implied warranty of
-  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
-  Lesser General Public License for more details.
-
-  You should have received a copy of the GNU Lesser General Public
-  License along with this library; if not, write to the Free Software
-  Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
-*/
-
 #include "ax12.h"
 
 /******************************************************************************
@@ -26,28 +7,12 @@
 
 namespace dynamixel_ax12 {
 
-namespace {
-uint8_t rx_buffer[kBufferSize]; // used in readResponse and getRegister
-uint8_t rx_int_buffer[kBufferSize]; // also used in readResponse
-
-// making these volatile keeps the compiler from optimizing loops of available()
-// (although I'm unclear why rx_int_buffer_idx needs to be volatile)
-volatile uint8_t rx_buffer_idx;
-volatile uint8_t rx_int_buffer_idx;
-
-// For sync write
-uint8_t sync_write_num_servos_ = 0;
-uint8_t sync_write_data_length_ = 0;
-uint8_t sync_write_starting_register_;
-uint8_t* sync_write_tx_buffer_;
-uint8_t sync_write_tx_buffer_idx_;
-}
 
 /**
  * @brief Enable transmission (emulating half-duplex on ATMega644 without an RTS line)
  * 
  */
-void setTX() {
+void AX12Bus::setTX() {
   bitClear(UCSR1B, RXEN1); // disable RX on Serial1
   bitSet(UCSR1B, TXEN1); // enable TX on Serial1
   bitClear(UCSR1B, RXCIE1); // clear Receive Complete Interrupt
@@ -57,7 +22,7 @@ void setTX() {
  * @brief Enable receiving (emulating half-duplex on ATMega644 without an RTS line)
  * 
  */
-void setRX() {
+void AX12Bus::setRX() {
   while (bit_is_clear(UCSR1A, UDRE1)) {}; // wait for tx buffer to be ready to receive new data i.e. all previous data has been sent
   bitClear(UCSR1B, TXEN1); // disable TX on Serial1
   bitSet(UCSR1B, RXCIE1); // enable Receive Complete Interrupt
@@ -73,7 +38,7 @@ void setRX() {
  * 
  * @param data 
  */
-void write(uint8_t data) {
+void AX12Bus::write(uint8_t data) {
   while (bit_is_clear(UCSR1A, UDRE1)) {}; // wait for tx buffer to be ready to receive new data
   UDR1 = data;
 }
@@ -86,20 +51,17 @@ void write(uint8_t data) {
  *  A wrap-around buffer does not appear to be fast enough to catch all bytes at 1Mbps.""
  * 
  */
-ISR(USART1_RX_vect){
-    rx_int_buffer[(rx_int_buffer_idx++)] = UDR1;
-}
+// ISR(USART1_RX_vect){
+//     rx_int_buffer[(rx_int_buffer_idx++)] = UDR1;
+// }
 
-namespace {
-uint8_t rx_error;
-}
 
 /**
  * @brief Returns the error from the last packet read (may not relate to the last instruction sent)
  * 
  * @return uint8_t Error type
  */
-uint8_t getLastError() { return rx_error; }
+uint8_t AX12Bus::getLastError() { return rx_error; }
 
 /**
  * @brief Reads a status response packet from an AX12
@@ -121,7 +83,7 @@ uint8_t getLastError() { return rx_error; }
  * @return true if packet of expected length with validated checksum was received
  * @return false otherwise (timeout or failed checksum)
  */
-bool readResponse(const uint8_t length) {
+bool AX12Bus::readResponse(const uint8_t length) {
   uint8_t byte_count = 0;
   bool timeout = false;
   volatile uint8_t rx_int_buffer_idx_last = 0; // even though rx_int_buffer_idx is volatile, this must be too
@@ -166,7 +128,7 @@ bool readResponse(const uint8_t length) {
  * 
  * @param baud 
  */
-void init(const uint32_t baud) {
+void AX12Bus::init(const uint32_t baud) {
   UBRR1H = (F_CPU / (8 * baud) - 1) >> 8; // baud rate register high byte
   UBRR1L = (F_CPU / (8 * baud) - 1); // baud rate register low byte
   bitSet(UCSR1A, U2X1); // set double speed
@@ -193,7 +155,7 @@ void init(const uint32_t baud) {
  * @param id The servo to ping
  * @return bool the result of readResponse
  */
-bool ping(const uint8_t id) {
+bool AX12Bus::ping(const uint8_t id) {
   const uint8_t packet_length = 2; // Byte size of the Instruction (1), Parameter (0) and Checksum (1) fields.
   const uint8_t buffer_size = 3;
   uint8_t tx_buffer[buffer_size];
@@ -212,7 +174,7 @@ bool ping(const uint8_t id) {
  * @param buffer Containing the instruction packet, excluding checksum
  * @param length Length of buffer
  */
-void writeBufferOut(const uint8_t* buffer, const uint8_t length) {
+void AX12Bus::writeBufferOut(const uint8_t* buffer, const uint8_t length) {
   setTX();
   write(0xFF);
   write(0xFF);
@@ -240,7 +202,7 @@ void writeBufferOut(const uint8_t* buffer, const uint8_t length) {
  * @param data_length Register length in bytes
  * @return int16_t the read value, or -1 if unsuccessful
  */
-int16_t getRegister(const uint8_t id, const uint8_t regstart, const uint8_t data_length) {
+int16_t AX12Bus::getRegister(const uint8_t id, const uint8_t regstart, const uint8_t data_length) {
   // 0xFF 0xFF ID LENGTH INSTRUCTION PARAM... CHECKSUM
   const uint8_t packet_length = 4; // Byte size of the Instruction (1), Parameter (2) and Checksum (1) fields.
   const uint8_t buffer_size = 5;
@@ -282,7 +244,7 @@ int16_t getRegister(const uint8_t id, const uint8_t regstart, const uint8_t data
  * @param data The data byte to write
  * @param read_response Whether to try reading a status packet. Set to false if the Status Return Level is not ALL
  */
-void setRegister(const uint8_t id, const uint8_t regstart, const uint8_t data, bool read_response) {
+void AX12Bus::setRegister(const uint8_t id, const uint8_t regstart, const uint8_t data, bool read_response) {
   const uint8_t packet_length = 4; // Byte size of the Instruction (1), Parameter (2) and Checksum (1) fields.
   const uint8_t buffer_size = 5;
   uint8_t tx_buffer[buffer_size];
@@ -318,7 +280,7 @@ void setRegister(const uint8_t id, const uint8_t regstart, const uint8_t data, b
  * @param data The 2 data bytes to write
  * @param read_response Whether to try reading a status packet. Set to false if the Status Return Level is not ALL
  */
-void setRegister(const uint8_t id, const uint8_t regstart, const uint16_t data, bool read_response) {
+void AX12Bus::setRegister(const uint8_t id, const uint8_t regstart, const uint16_t data, bool read_response) {
   const uint8_t packet_length = 5; // Byte size of the Instruction (1), Parameter (3) and Checksum (1) fields.
   const uint8_t buffer_size = 6;
   uint8_t tx_buffer[buffer_size];
@@ -351,7 +313,7 @@ void setRegister(const uint8_t id, const uint8_t regstart, const uint16_t data, 
  * @param data The data byte to write
  * @param read_response Whether to try reading a status packet. Set to false if the Status Return Level is not ALL
  */
-void setStagedInstruction(const uint8_t id, const uint8_t starting_register, const uint8_t data, bool read_response) {
+void AX12Bus::setStagedInstruction(const uint8_t id, const uint8_t starting_register, const uint8_t data, bool read_response) {
   const uint8_t packet_length = 4; // Byte size of the Instruction (1), Parameter (2) and Checksum (1) fields.
   const uint8_t buffer_size = 5;
   uint8_t tx_buffer[buffer_size];
@@ -387,7 +349,7 @@ void setStagedInstruction(const uint8_t id, const uint8_t starting_register, con
  * @param data The 2 data bytes to write
  * @param read_response Whether to try reading a status packet. Set to false if the Status Return Level is not ALL
  */
-void setStagedInstruction(const uint8_t id, const uint8_t starting_register, const uint16_t data, bool read_response) {
+void AX12Bus::setStagedInstruction(const uint8_t id, const uint8_t starting_register, const uint16_t data, bool read_response) {
   const uint8_t packet_length = 5; // Byte size of the Instruction (1), Parameter (3) and Checksum (1) fields.
   const uint8_t buffer_size = 6;
   uint8_t tx_buffer[buffer_size];
@@ -417,7 +379,7 @@ void setStagedInstruction(const uint8_t id, const uint8_t starting_register, con
  * Note that this uses the broadcast ID to address all servos, so there is no status return packet.
  * 
  */
-void executeStagedInstructions() {
+void AX12Bus::executeStagedInstructions() {
   const uint8_t packet_length = 2; // Byte size of the Instruction (1), Parameter (0) and Checksum (1) fields.
   const uint8_t buffer_size = 3;
   uint8_t tx_buffer[buffer_size];
@@ -445,7 +407,7 @@ void executeStagedInstructions() {
  * @param data_length length (bytes) of data to be written
  * @param tx_buffer a buffer of sufficient length
  */
-void setupSyncWrite(const uint8_t num_servos, const uint8_t starting_register, const uint8_t data_length, uint8_t* tx_buffer) {
+void AX12Bus::setupSyncWrite(const uint8_t num_servos, const uint8_t starting_register, const uint8_t data_length, uint8_t* tx_buffer) {
   sync_write_num_servos_ = num_servos;
   sync_write_starting_register_ = starting_register;
   sync_write_data_length_ = data_length;
@@ -464,7 +426,7 @@ void setupSyncWrite(const uint8_t num_servos, const uint8_t starting_register, c
  * @param id
  * @param data
  */
-bool addToSyncWrite(const uint8_t id, const uint8_t data) {
+bool AX12Bus::addToSyncWrite(const uint8_t id, const uint8_t data) {
   if (sync_write_data_length_ == 1) {
     sync_write_tx_buffer_[sync_write_tx_buffer_idx_++] = id;
     sync_write_tx_buffer_[sync_write_tx_buffer_idx_++] = data;
@@ -481,7 +443,7 @@ bool addToSyncWrite(const uint8_t id, const uint8_t data) {
  * @param id
  * @param data
  */
-bool addToSyncWrite(const uint8_t id, const uint16_t data) {
+bool AX12Bus::addToSyncWrite(const uint8_t id, const uint16_t data) {
   if (sync_write_data_length_ == 2) {
     sync_write_tx_buffer_[sync_write_tx_buffer_idx_++] = id;
     sync_write_tx_buffer_[sync_write_tx_buffer_idx_++] = data & 0xff;
@@ -499,7 +461,7 @@ bool addToSyncWrite(const uint8_t id, const uint16_t data) {
  * @param id
  * @param data
  */
-void addToSyncWrite(const uint8_t id, const uint8_t* data) {
+void AX12Bus::addToSyncWrite(const uint8_t id, const uint8_t* data) {
   sync_write_tx_buffer_[sync_write_tx_buffer_idx_++] = id;
   for (uint8_t i = 0; i < sync_write_data_length_; i++) {
     sync_write_tx_buffer_[sync_write_tx_buffer_idx_++] = data[i];
@@ -512,7 +474,7 @@ void addToSyncWrite(const uint8_t id, const uint8_t* data) {
  *  data length values declared in setupSyncWrite.
  * @return false if not (and it will not attempt to transmit the instruction).
  */
-bool executeSyncWrite() {
+bool AX12Bus::executeSyncWrite() {
   if (sync_write_tx_buffer_idx_ != sync_write_tx_buffer_[1] + 1) {
     return false;
   }
@@ -529,7 +491,7 @@ bool executeSyncWrite() {
  * @brief pointer to rx_buffer for debugging
  * @return
  */
-const uint8_t* getRxBuffer() {
+const uint8_t* AX12Bus::getRxBuffer() {
   return rx_buffer;
 }
 
@@ -537,27 +499,27 @@ const uint8_t* getRxBuffer() {
  * @brief pointer to rx_int_buffer for debugging
  * @return
  */
-const uint8_t* getRxIntBuffer() {
+const uint8_t* AX12Bus::getRxIntBuffer() {
   return rx_int_buffer;
 }
 
-void setStatusReturnLevel(const uint8_t id, const StatusReturnLevel::type srl) {
+void AX12Bus::setStatusReturnLevel(const uint8_t id, const StatusReturnLevel::type srl) {
   setRegister(id, RegisterPosition::AX_RETURN_LEVEL, static_cast<uint8_t>(srl), false);
 }
 
-void enableTorque(const uint8_t servo_id) {
+void AX12Bus::enableTorque(const uint8_t servo_id) {
   // TODO really need to handle whether to readResponse or not better
 }
 
-void enableTorque() {
+void AX12Bus::enableTorque() {
   setRegister(kBroadcastId, RegisterPosition::AX_TORQUE_ENABLE, static_cast<uint8_t>(1), false);
 }
 
-void disableTorque(const uint8_t servo_id) {
+void AX12Bus::disableTorque(const uint8_t servo_id) {
   // TODO really need to handle whether to readResponse or not better
 }
 
-void disableTorque() {
+void AX12Bus::disableTorque() {
   setRegister(kBroadcastId, RegisterPosition::AX_TORQUE_ENABLE, static_cast<uint8_t>(0), false);
 }
 
