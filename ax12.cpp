@@ -72,10 +72,6 @@ uint8_t AX12Bus::getLastError() { return rx_error; }
  * @return false otherwise (timeout or failed checksum)
  */
 bool AX12Bus::readResponse(const uint8_t length) {
-  // uint8_t byte_count = 0;
-  // bool timeout = false;
-  // volatile uint8_t rx_int_buffer_idx_last = 0; // even though rx_int_buffer_idx is volatile, this must be too
-
   uint8_t rx_idx = 0;
   uint32_t start_time_us = micros();
   while (rx_idx < length && micros() - start_time_us < 1500UL) {
@@ -92,8 +88,11 @@ bool AX12Bus::readResponse(const uint8_t length) {
   for (uint8_t idx = 2; idx < length; idx++) {
     total += rx_buffer[idx];
   }
+  
+  const bool checksum_ok = total == 255;
+  const bool is_error = rx_buffer[4] > 0;
 
-  return total == 255;
+  return checksum_ok && !is_error;
 }
 
 
@@ -118,9 +117,10 @@ void AX12Bus::setDirectionPinOutputLevelForTx(uint8_t level) {
 /**
  * @brief Ping a servo and read its status return packet
  * @details Corresponds to a PING instruction followed by parsing the response from the AX12.
+ * The response will always be sent regardless of the status return level of the target.
  * The READ instruction has the following format
  * Instruction Length 	  Instruction ID
- * 0x02 	                0x01 	        
+ * 0x02 	                0x01
  * 
  * @param id The servo to ping
  * @return bool the result of readResponse
@@ -211,13 +211,16 @@ int16_t AX12Bus::getRegister(const uint8_t id, const uint8_t regstart, const uin
  * where P1, P2 ... PN+1 are the parameters of this instruction. In this function there is only P1, P2
  * In theory multiple (consecutive) registers can be written at once (not supported by this function)
  * This structure is always preceeded by 0xFF 0xFF in the serial packet.
- * 
+ *
+ * Whether or not the target sends a response depends on its status return level. If this command will trigger a response, you should read it (even if you don't use it).
+ *
  * @param id The servo ID to write to
  * @param regstart Starting position in the control table to write to
  * @param data The data byte to write
  * @param read_response Whether to try reading a status packet. Set to false if the Status Return Level is not ALL
+ * @return true if no response requested, otherwise true if a response was received and there were no errors reported
  */
-void AX12Bus::setRegister(const uint8_t id, const uint8_t regstart, const uint8_t data, bool read_response) {
+bool AX12Bus::setRegister(const uint8_t id, const uint8_t regstart, const uint8_t data, bool read_response) {
   const uint8_t packet_length = 4; // Byte size of the Instruction (1), Parameter (2) and Checksum (1) fields.
   const uint8_t buffer_size = 5;
   uint8_t tx_buffer[buffer_size];
@@ -230,11 +233,12 @@ void AX12Bus::setRegister(const uint8_t id, const uint8_t regstart, const uint8_
   writeBufferOut(tx_buffer, buffer_size);
 
   if (read_response) {
-    readResponse(kStatusReturnDefaultSize);
+    return readResponse(kStatusReturnDefaultSize);
+  } else {
+    return true;
   }
 }
 
-// TODO explicitly provide the data length?
 /**
  * @brief Set the value of a double-byte register on the AX12
  * @details Corresponds to a WRITE instruction.
@@ -246,14 +250,15 @@ void AX12Bus::setRegister(const uint8_t id, const uint8_t regstart, const uint8_
  * In theory multiple (consecutive) registers can be written at once (not supported by this function)
  * This structure is always preceeded by 0xFF 0xFF in the serial packet.
  * 
- * Note that multi-byte registers are stored litt-endian (low byte then high byte).
+ * Note that multi-byte registers are stored little-endian (low byte then high byte).
  * 
  * @param id The servo ID to write to
  * @param regstart Starting position in the control table to write to
  * @param data The 2 data bytes to write
  * @param read_response Whether to try reading a status packet. Set to false if the Status Return Level is not ALL
+ * @return true if no response requested, otherwise true if a response was received and there were no errors reported
  */
-void AX12Bus::setRegister(const uint8_t id, const uint8_t regstart, const uint16_t data, bool read_response) {
+bool AX12Bus::setRegister(const uint8_t id, const uint8_t regstart, const uint16_t data, bool read_response) {
   const uint8_t packet_length = 5; // Byte size of the Instruction (1), Parameter (3) and Checksum (1) fields.
   const uint8_t buffer_size = 6;
   uint8_t tx_buffer[buffer_size];
@@ -267,7 +272,9 @@ void AX12Bus::setRegister(const uint8_t id, const uint8_t regstart, const uint16
   writeBufferOut(tx_buffer, buffer_size);
 
   if (read_response) {
-    readResponse(kStatusReturnDefaultSize);
+    return readResponse(kStatusReturnDefaultSize);
+  } else {
+    return true;
   }
 }
 
@@ -285,8 +292,9 @@ void AX12Bus::setRegister(const uint8_t id, const uint8_t regstart, const uint16
  * @param starting_register Starting position in the control table to write to
  * @param data The data byte to write
  * @param read_response Whether to try reading a status packet. Set to false if the Status Return Level is not ALL
+ * @return true if no response requested, otherwise true if a response was received and there were no errors reported
  */
-void AX12Bus::setStagedInstruction(const uint8_t id, const uint8_t starting_register, const uint8_t data, bool read_response) {
+bool AX12Bus::setStagedInstruction(const uint8_t id, const uint8_t starting_register, const uint8_t data, bool read_response) {
   const uint8_t packet_length = 4; // Byte size of the Instruction (1), Parameter (2) and Checksum (1) fields.
   const uint8_t buffer_size = 5;
   uint8_t tx_buffer[buffer_size];
@@ -299,7 +307,9 @@ void AX12Bus::setStagedInstruction(const uint8_t id, const uint8_t starting_regi
   writeBufferOut(tx_buffer, buffer_size);
 
   if (read_response) {
-    readResponse(kStatusReturnDefaultSize);
+    return readResponse(kStatusReturnDefaultSize);
+  } else {
+    return true;
   }
 }
 
@@ -321,8 +331,9 @@ void AX12Bus::setStagedInstruction(const uint8_t id, const uint8_t starting_regi
  * @param starting_register Starting position in the control table to write to
  * @param data The 2 data bytes to write
  * @param read_response Whether to try reading a status packet. Set to false if the Status Return Level is not ALL
+ * @return true if no response requested, otherwise true if a response was received and there were no errors reported
  */
-void AX12Bus::setStagedInstruction(const uint8_t id, const uint8_t starting_register, const uint16_t data, bool read_response) {
+bool AX12Bus::setStagedInstruction(const uint8_t id, const uint8_t starting_register, const uint16_t data, bool read_response) {
   const uint8_t packet_length = 5; // Byte size of the Instruction (1), Parameter (3) and Checksum (1) fields.
   const uint8_t buffer_size = 6;
   uint8_t tx_buffer[buffer_size];
@@ -336,7 +347,9 @@ void AX12Bus::setStagedInstruction(const uint8_t id, const uint8_t starting_regi
   writeBufferOut(tx_buffer, buffer_size);
 
   if (read_response) {
-    readResponse(kStatusReturnDefaultSize);
+    return readResponse(kStatusReturnDefaultSize);
+  } else {
+    return true;
   }
 }
 
@@ -460,13 +473,13 @@ bool AX12Bus::executeSyncWrite() {
 
 
 
-// /**
-//  * @brief pointer to rx_buffer for debugging
-//  * @return
-//  */
-// const uint8_t* AX12Bus::getRxBuffer() {
-//   return rx_buffer;
-// }
+/**
+ * @brief pointer to rx_buffer for debugging
+ * @return
+ */
+const uint8_t* AX12Bus::getRxBuffer() {
+  return rx_buffer;
+}
 
 // /**
 //  * @brief pointer to rx_int_buffer for debugging
