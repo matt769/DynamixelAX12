@@ -21,29 +21,6 @@ void AX12Bus::setRX() {
 }
 
 
-// /**
-//  * @brief Writes a character to the Serial1 UART transmit buffer
-//  * 
-//  * @param data 
-//  */
-// void AX12Bus::write(uint8_t data) {
-//   while (bit_is_clear(UCSR1A, UDRE1)) {}; // wait for tx buffer to be ready to receive new data
-//   UDR1 = data;
-// }
-
-/**  */
-/**
- * @brief USART1 Rx Complete Interrupt Vector - loads the received byte into 'rx_int_buffer'
- * @details From ArbotiX library for AX/RX control:
- * "We have a one-way recieve buffer, which is reset after each packet is receieved.
- *  A wrap-around buffer does not appear to be fast enough to catch all bytes at 1Mbps.""
- * 
- */
-// ISR(USART1_RX_vect){
-//     rx_int_buffer[(rx_int_buffer_idx++)] = UDR1;
-// }
-
-
 /**
  * @brief Returns the error from the last packet read (may not relate to the last instruction sent)
  * 
@@ -480,14 +457,6 @@ bool AX12Bus::executeSyncWrite() {
 const uint8_t* AX12Bus::getRxBuffer() {
   return rx_buffer;
 }
-
-// /**
-//  * @brief pointer to rx_int_buffer for debugging
-//  * @return
-//  */
-// const uint8_t* AX12Bus::getRxIntBuffer() {
-//   return rx_int_buffer;
-// }
 
 void AX12Bus::setStatusReturnLevel(const uint8_t id, const StatusReturnLevel::type srl) {
   setRegister(id, RegisterPosition::AX_RETURN_LEVEL, static_cast<uint8_t>(srl), false);

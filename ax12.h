@@ -1,10 +1,3 @@
-// TODO
-//  is there a better approach for the constants?
-//  add 'nice' interfact for getting and setting all registers including conversion to sensible quantities
-//  have all positions as SIGNED int? since they have to be 16bit anyway
-//  change functions to take enums as enums (not ints)
-
-
 #ifndef DYNAMIXEL_AX12_H
 #define DYNAMIXEL_AX12_H
 
