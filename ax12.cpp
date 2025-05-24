@@ -20,8 +20,7 @@
 #include "ax12.h"
 
 /******************************************************************************
- * Hardware Serial Level, this uses the same stuff as Serial1, therefore 
- *  you should not use the Arduino Serial1 library.
+ * Dynamixel communication uses Serial3
  */
 
 namespace dynamixel_ax12 {
@@ -44,50 +43,48 @@ uint8_t sync_write_tx_buffer_idx_;
 }
 
 /**
- * @brief Enable transmission (emulating half-duplex on ATMega644 without an RTS line)
+ * @brief Enable transmission on Serial3 of ATMega2560
  * 
  */
 void setTX() {
-  bitClear(UCSR1B, RXEN1); // disable RX on Serial1
-  bitSet(UCSR1B, TXEN1); // enable TX on Serial1
-  bitClear(UCSR1B, RXCIE1); // clear Receive Complete Interrupt
+  bitClear(UCSR3B, RXEN3); // disable RX
+  bitSet(UCSR3B, TXEN3); // enable TX
+  bitClear(UCSR3B, RXCIE3); // clear Receive Complete Interrupt
 }
 
 /**
- * @brief Enable receiving (emulating half-duplex on ATMega644 without an RTS line)
+ * @brief Enable receiving on Serial3 of ATMega2560
  * 
  */
 void setRX() {
-  while (bit_is_clear(UCSR1A, UDRE1)) {}; // wait for tx buffer to be ready to receive new data i.e. all previous data has been sent
-  bitClear(UCSR1B, TXEN1); // disable TX on Serial1
-  bitSet(UCSR1B, RXCIE1); // enable Receive Complete Interrupt
-  bitSet(UCSR1B, RXEN1);  // enable RX on Serial1
+  while (bit_is_clear(UCSR3A, UDRE3)) {};
+  bitClear(UCSR3B, TXEN3); // disable TX
+  bitSet(UCSR3B, RXCIE3); // enable Receive Complete Interrupt
+  bitSet(UCSR3B, RXEN3);  // enable RX
   rx_int_buffer_idx = 0;
   rx_buffer_idx = 0;
 }
 
-// Could we not use the standard serial functions?
-// Seems like they are (deliberately) disabled in the arbotix 'core'
 /**
- * @brief Writes a character to the Serial1 UART transmit buffer
+ * @brief Writes a character to the Serial3/UART3 transmit buffer
  * 
  * @param data 
  */
 void write(uint8_t data) {
-  while (bit_is_clear(UCSR1A, UDRE1)) {}; // wait for tx buffer to be ready to receive new data
-  UDR1 = data;
+  while (bit_is_clear(UCSR3A, UDRE3)) {}; // wait for tx buffer to be ready to receive new data
+  UDR3 = data;
 }
 
 /**  */
 /**
- * @brief USART1 Rx Complete Interrupt Vector - loads the received byte into 'rx_int_buffer'
+ * @brief USART3 Rx Complete Interrupt Vector - loads the received byte into 'rx_int_buffer'
  * @details From ArbotiX library for AX/RX control:
  * "We have a one-way recieve buffer, which is reset after each packet is receieved.
  *  A wrap-around buffer does not appear to be fast enough to catch all bytes at 1Mbps.""
  * 
  */
-ISR(USART1_RX_vect){
-    rx_int_buffer[(rx_int_buffer_idx++)] = UDR1;
+ISR(USART3_RX_vect){
+  rx_int_buffer[(rx_int_buffer_idx++)] = UDR3;
 }
 
 namespace {
@@ -162,26 +159,42 @@ bool readResponse(const uint8_t length) {
 
 
 /**
- * @brief Initialise UART1 on the ATMega644 and set up some buffers
- * 
+ * @brief Initialise UART3 on the ATMega2560
+ * Set the buad rate and packet format
+ * Put into receiving state
  * @param baud 
  */
 void init(const uint32_t baud) {
-  UBRR1H = (F_CPU / (8 * baud) - 1) >> 8; // baud rate register high byte
-  UBRR1L = (F_CPU / (8 * baud) - 1); // baud rate register low byte
-  bitSet(UCSR1A, U2X1); // set double speed
-  
-  // Not sure any need to specify using double speed
-  // Can just do like this
-  // UBRR1H = (F_CPU / (16 * baud) - 1) >> 8;
-  // UBRR1L = (F_CPU / (16 * baud) - 1);
-  
-  
-  rx_int_buffer_idx = 0;
-  // set RX as pull up to hold bus to a known level
-  PORTD |= (1 << 2);
+  uint16_t ubrr = (F_CPU / (16UL * baud) - 1);
+  UBRR3H = ubrr >> 8;
+  UBRR3L = ubrr;
+
+  // Set pullup on RX? Port J, bit 0
+  // DDRJ |= (0 << 0);
+  // PORTJ |= (1 << 0);
+  // or
+  bitClear(DDRJ, PJ0);
+  bitSet(PORTJ, PJ0);
+
+  // Set frame format: 8data, 1stop bit, 0 parity (default)
+
+  // 1 stop bit (default)
+  bitClear(UCSR3C, USBS3);
+
+  // 8 data bits
+  bitClear(UCSR3C, UCSZ32);
+  bitSet(UCSR3C, UCSZ31);
+  bitSet(UCSR3C, UCSZ30);
+
+  // no parity
+  bitClear(UCSR3C, UPM31);
+  bitClear(UCSR3C, UPM30);
+
+  // alternative UCSR3C = (0<<USBS3) | (3<<UCSZ30) | (0<<UCSZ30) ;
   setRX();
 }
+
+
 
 /**
  * @brief Ping a servo and read its status return packet
@@ -208,7 +221,7 @@ bool ping(const uint8_t id) {
 }
 
 /**
- * @brief Write the content of a buffer out to Serial1, adding preceding 0xFF 0xFF, and trailing checksum.
+ * @brief Write the content of a buffer out to Serial3/UART3, adding preceding 0xFF 0xFF, and trailing checksum.
  * @param buffer Containing the instruction packet, excluding checksum
  * @param length Length of buffer
  */
