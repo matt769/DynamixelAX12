@@ -129,9 +129,7 @@ class AX12Bus {
   void setStatusReturnLevel(uint8_t id, StatusReturnLevel::type srl);
 
   void enableTorque(uint8_t servo_id);
-  void enableTorque();
   void disableTorque(uint8_t servo_id);
-  void disableTorque();
 
   // TODO Read registers
   //  May want to change the way that getRegister works first i.e. not fixed to return int16_t and -1 on failure
@@ -180,12 +178,6 @@ class AX12Bus {
   bool readResponse(uint8_t length);
 
   uint8_t rx_buffer[kBufferSize]; // used in readResponse and getRegister
-  // uint8_t rx_int_buffer[kBufferSize]; // also used in readResponse
-
-  // // making these volatile keeps the compiler from optimizing loops of available()
-  // // (although I'm unclear why rx_int_buffer_idx needs to be volatile)
-  // volatile uint8_t rx_buffer_idx;
-  // volatile uint8_t rx_int_buffer_idx;
 
   // For sync write
   uint8_t sync_write_num_servos_ = 0;

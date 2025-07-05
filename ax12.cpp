@@ -462,16 +462,8 @@ void AX12Bus::setStatusReturnLevel(const uint8_t id, const StatusReturnLevel::ty
   setRegister(id, RegisterPosition::AX_RETURN_LEVEL, static_cast<uint8_t>(srl), false);
 }
 
-void AX12Bus::enableTorque(const uint8_t servo_id) {
-  // TODO really need to handle whether to readResponse or not better
-}
-
 void AX12Bus::enableTorque() {
   setRegister(kBroadcastId, RegisterPosition::AX_TORQUE_ENABLE, static_cast<uint8_t>(1), false);
-}
-
-void AX12Bus::disableTorque(const uint8_t servo_id) {
-  // TODO really need to handle whether to readResponse or not better
 }
 
 void AX12Bus::disableTorque() {
