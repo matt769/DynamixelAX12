@@ -20,7 +20,8 @@
 #include "ax12.h"
 
 /******************************************************************************
- * Dynamixel communication uses Serial3
+ * Uses Serial3 for Atmega2560
+ * and Serial1 for Atmega644P
  */
 
 namespace dynamixel_ax12 {
@@ -43,49 +44,83 @@ uint8_t sync_write_tx_buffer_idx_;
 }
 
 /**
- * @brief Enable transmission on Serial3 of ATMega2560
+ * @brief Enable transmission
  * 
  */
 void setTX() {
+#if defined(__AVR_ATmega644P__)
+  bitClear(UCSR1B, RXEN1); // disable RX
+  bitSet(UCSR1B, TXEN1); // enable TX
+  bitClear(UCSR1B, RXCIE1); // clear Receive Complete Interrupt
+#elif defined(__AVR_ATmega2560__)
   bitClear(UCSR3B, RXEN3); // disable RX
   bitSet(UCSR3B, TXEN3); // enable TX
   bitClear(UCSR3B, RXCIE3); // clear Receive Complete Interrupt
+#else
+  static_assert(false, "Software half duplex is only defined (here) for ATmega644P and ATmega2560");
+#endif
 }
 
 /**
- * @brief Enable receiving on Serial3 of ATMega2560
+ * @brief Enable receiving
  * 
  */
 void setRX() {
-  while (bit_is_clear(UCSR3A, UDRE3)) {};
+#if defined(__AVR_ATmega644P__)
+  while (bit_is_clear(UCSR1A, UDRE1)) {}; // wait for tx buffer to be ready to receive new data i.e. all previous data has been sent
+  bitClear(UCSR1B, TXEN1); // disable TX
+  bitSet(UCSR1B, RXCIE1); // enable Receive Complete Interrupt
+  bitSet(UCSR1B, RXEN1);  // enable RX
+#elif defined(__AVR_ATmega2560__)
+  while (bit_is_clear(UCSR3A, UDRE3)) {}; // wait for tx buffer to be ready to receive new data i.e. all previous data has been sent
   bitClear(UCSR3B, TXEN3); // disable TX
   bitSet(UCSR3B, RXCIE3); // enable Receive Complete Interrupt
   bitSet(UCSR3B, RXEN3);  // enable RX
+#else
+  static_assert(false, "Software half duplex is only defined (here) for ATmega644P and ATmega2560");
+#endif
+
   rx_int_buffer_idx = 0;
   rx_buffer_idx = 0;
 }
 
 /**
- * @brief Writes a character to the Serial3/UART3 transmit buffer
+ * @brief Writes a character to the Serial/UART transmit buffer
  * 
  * @param data 
  */
 void write(uint8_t data) {
+#if defined(__AVR_ATmega644P__)
+  while (bit_is_clear(UCSR1A, UDRE1)) {}; // wait for tx buffer to be ready to receive new data
+  UDR1 = data;
+#elif defined(__AVR_ATmega2560__)
   while (bit_is_clear(UCSR3A, UDRE3)) {}; // wait for tx buffer to be ready to receive new data
   UDR3 = data;
+#else
+  static_assert(false, "Software half duplex is only defined (here) for ATmega644P and ATmega2560");
+#endif
 }
 
 /**  */
 /**
- * @brief USART3 Rx Complete Interrupt Vector - loads the received byte into 'rx_int_buffer'
+ * @brief USARTn Rx Complete Interrupt Vector - loads the received byte into 'rx_int_buffer'
  * @details From ArbotiX library for AX/RX control:
  * "We have a one-way recieve buffer, which is reset after each packet is receieved.
  *  A wrap-around buffer does not appear to be fast enough to catch all bytes at 1Mbps.""
  * 
  */
+#if defined(__AVR_ATmega644P__)
+ISR(USART1_RX_vect){
+  rx_int_buffer[(rx_int_buffer_idx++)] = UDR1;
+}
+#elif defined(__AVR_ATmega2560__)
 ISR(USART3_RX_vect){
   rx_int_buffer[(rx_int_buffer_idx++)] = UDR3;
 }
+#else
+static_assert(false, "Software half duplex is only defined (here) for ATmega644P and ATmega2560");
+#endif
+
 
 namespace {
 uint8_t rx_error;
@@ -159,25 +194,36 @@ bool readResponse(const uint8_t length) {
 
 
 /**
- * @brief Initialise UART3 on the ATMega2560
- * Set the buad rate and packet format
+ * @brief Initialise UART
+ * Set the baud rate and packet format
  * Put into receiving state
  * @param baud 
  */
 void init(const uint32_t baud) {
+#if defined(__AVR_ATmega644P__)
+  UBRR1H = (F_CPU / (8 * baud) - 1) >> 8; // baud rate register high byte
+  UBRR1L = (F_CPU / (8 * baud) - 1); // baud rate register low byte
+  bitSet(UCSR1A, U2X1); // set double speed
+
+  // Not sure any need to specify using double speed
+  // Can just do like this
+  // UBRR1H = (F_CPU / (16 * baud) - 1) >> 8;
+  // UBRR1L = (F_CPU / (16 * baud) - 1);
+
+  rx_int_buffer_idx = 0;
+  // set RX as pull up to hold bus to a known level
+  PORTD |= (1 << 2);
+
+#elif defined(__AVR_ATmega2560__)
   uint16_t ubrr = (F_CPU / (16UL * baud) - 1);
   UBRR3H = ubrr >> 8;
   UBRR3L = ubrr;
 
-  // Set pullup on RX? Port J, bit 0
-  // DDRJ |= (0 << 0);
-  // PORTJ |= (1 << 0);
-  // or
+  // Set pullup on RX. Port J, bit 0
   bitClear(DDRJ, PJ0);
   bitSet(PORTJ, PJ0);
 
   // Set frame format: 8data, 1stop bit, 0 parity (default)
-
   // 1 stop bit (default)
   bitClear(UCSR3C, USBS3);
 
@@ -191,6 +237,10 @@ void init(const uint32_t baud) {
   bitClear(UCSR3C, UPM30);
 
   // alternative UCSR3C = (0<<USBS3) | (3<<UCSZ30) | (0<<UCSZ30) ;
+#else
+  static_assert(false, "Software half duplex is only defined (here) for ATmega644P and ATmega2560");
+#endif
+
   setRX();
 }
 
