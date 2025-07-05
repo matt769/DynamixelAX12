@@ -157,13 +157,11 @@ uint8_t getLastError();
 
 // Functions built on top of 'raw' instruction functions
 void setStatusReturnLevel(uint8_t id, StatusReturnLevel::type srl);
-
-void enableTorque(uint8_t servo_id);
 void enableTorque();
-void disableTorque(uint8_t servo_id);
+// Note that writing a goal position will automatically enable torque and 'disabling' torque will no longer work
 void disableTorque();
 
-// TODO Read registers
+// TODO Read registers?
 //  May want to change the way that getRegister works first i.e. not fixed to return int16_t and -1 on failure
 //uint16_t GetModelNumber(uint8_t servo_id);
 //uint8_t GetFirmwareVersion(uint8_t servo_id);

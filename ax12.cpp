@@ -545,16 +545,8 @@ void setStatusReturnLevel(const uint8_t id, const StatusReturnLevel::type srl) {
   setRegister(id, RegisterPosition::AX_RETURN_LEVEL, static_cast<uint8_t>(srl), false);
 }
 
-void enableTorque(const uint8_t servo_id) {
-  // TODO really need to handle whether to readResponse or not better
-}
-
 void enableTorque() {
   setRegister(kBroadcastId, RegisterPosition::AX_TORQUE_ENABLE, static_cast<uint8_t>(1), false);
-}
-
-void disableTorque(const uint8_t servo_id) {
-  // TODO really need to handle whether to readResponse or not better
 }
 
 void disableTorque() {
