@@ -34,6 +34,10 @@ void setup() {
     Serial.print(res);
     Serial.print('\n');
 //    printBuffer(rx_buffer, 6);
+    if (!res) {
+      Serial.println("No response");
+        while(1);
+    }
   }
   delay(1000);
 
