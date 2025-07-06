@@ -6,21 +6,18 @@ For information on the servos:
 https://emanual.robotis.com/docs/en/dxl/ax/ax-12a/
 
 ## 'software' half-duplex
-See branches:  
-```sh
-software_uart_to_half_duplex_atmega644
-software_uart_to_half_duplex_atmega2560
-```
+This is the set up on master branch.
 
 The RX and TX lines must be connected in hardware.  
 The library controls whether the bus is in RX or TX state by changing the serial port settings accordingly (see Atmega datasheet). Because the lines are tied together, the microcontroller may receive data that it sent out - this is filtered out by the library. 
 The response should always be read after a transmission else there is a risk of putting the bus into transmit mode when the servo is also trying to send a response. For this reason I suggest that the status return level is kept on the default (ALL).
 
-## Hardware half-duplex
+## Hardware half-duplex option
 See branch  
 ```sh
 hardware_uart_to_half_duplex
 ```
+It would be more convenient to combine this with master, but due to the use (at the arduino library level) of interrupts in the software half-duplex version, and the inability to provide compile definitions through the arduino IDE build, this works out to be pretty awkward (and hence not done).  
 ![half_duplex_wiring](docs/hardware_half_duplex.png)  
 ![half_duplex_wiring_example](docs/hardware_half_duplex_example.jpg)  
 ![hardware_half_duplex_lines](docs/hardware_uart_to_halfduplex.png)  
