@@ -14,16 +14,16 @@ void printBuffer(const uint8_t* buffer, const uint8_t length) {
 
 void setup() {
   // put your setup code here, to run once:
-  ax12::AX12Bus ax12bus(Serial3, 1000000, 7);
+  ax12::init(&Serial3, 1000000, 7);
   Serial.begin(115200);
 
   // Useful for debugging to be able to inspect the buffers
-  const uint8_t* rx_buffer = ax12bus.getRxBuffer();
+  const uint8_t* rx_buffer = ax12::getRxBuffer();
 
 
   // 1. Ping
   uint8_t servo_id = 5;
-  bool ping_result = ax12bus.ping(servo_id);
+  bool ping_result = ax12::ping(servo_id);
   Serial.print("Pinged servo id ");
   Serial.print(servo_id);
   Serial.print(". Response: ");
@@ -34,7 +34,7 @@ void setup() {
   }
  
   // 2. Read registers (positions)
-  int16_t current_position = ax12bus.getRegister(servo_id, ax12::RegisterPosition::AX_PRESENT_POSITION_L, 2);
+  int16_t current_position = ax12::getRegister(servo_id, ax12::RegisterPosition::AX_PRESENT_POSITION_L, 2);
   Serial.print("Reading position of servo id ");
   Serial.print(servo_id);
   Serial.print(". Response: ");
@@ -46,7 +46,7 @@ void setup() {
   }
 
   // Also read the current return level
-  int16_t return_level = ax12bus.getRegister(servo_id, ax12::RegisterPosition::AX_RETURN_LEVEL, 1);
+  int16_t return_level = ax12::getRegister(servo_id, ax12::RegisterPosition::AX_RETURN_LEVEL, 1);
   if (return_level < 0) {
       Serial.println("Error. Stopping.");
       printBuffer(rx_buffer, 8);
@@ -59,7 +59,7 @@ void setup() {
   int16_t change = current_position > 511 ? -20 : 20;
   uint16_t target_position = current_position + change;
 
-  const bool set_reg_result = ax12bus.setRegister(servo_id, ax12::RegisterPosition::AX_GOAL_POSITION_L, target_position, read_response_for_others);
+  const bool set_reg_result = ax12::setRegister(servo_id, ax12::RegisterPosition::AX_GOAL_POSITION_L, target_position, read_response_for_others);
   Serial.print("Writing position of servo id ");
   Serial.print(servo_id);
   Serial.print(". Response: ");
@@ -75,7 +75,7 @@ void setup() {
   // 4. Staged write (position)
   int16_t change2 = current_position > 511 ? -20 : 20;
   uint16_t target_position2 = current_position + change2;
-  bool set_staged_result = ax12bus.setStagedInstruction(servo_id, ax12::RegisterPosition::AX_GOAL_POSITION_L, target_position2, read_response_for_others);
+  bool set_staged_result = ax12::setStagedInstruction(servo_id, ax12::RegisterPosition::AX_GOAL_POSITION_L, target_position2, read_response_for_others);
   Serial.print("Set staged instruction for servo ");
   Serial.print(servo_id);
   Serial.print(" to move to ");
@@ -84,7 +84,7 @@ void setup() {
   // 5. And then trigger (action)
   delay(1000);
   Serial.print("Triggering staged instructions");
-  ax12bus.executeStagedInstructions();
+  ax12::executeStagedInstructions();
 
   // 6. Factory reset - not going to implement or test this because I dont want to have to re-set the IDs
   //  since I have all my servos set into a robot currently
@@ -99,13 +99,13 @@ void setup() {
   const uint8_t starting_register = ax12::RegisterPosition::AX_GOAL_POSITION_L;
   const uint8_t buffer_size = num_servos * (data_length+1) + 4;
   uint8_t buffer[buffer_size];
-  ax12bus.setupSyncWrite(num_servos, starting_register, data_length, buffer);
+  ax12::setupSyncWrite(num_servos, starting_register, data_length, buffer);
   uint8_t starting_servo = 4;
   for (uint8_t servo_id = starting_servo; servo_id < starting_servo + num_servos; servo_id++) {
-    ax12bus.addToSyncWrite(servo_id, target_position3);
+    ax12::addToSyncWrite(servo_id, target_position3);
   }
   Serial.print("Executing synced write");
-  bool res = ax12bus.executeSyncWrite();
+  bool res = ax12::executeSyncWrite();
 
 }
 

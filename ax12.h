@@ -5,11 +5,6 @@
 
 namespace dynamixel_ax12 {
 
-const uint8_t kBufferSize = 32;
-const uint8_t kBroadcastId = 0xFE;
-const uint32_t kTimeoutCycles = 1500; // num cycles to wait for each byte in response packet before timing out
-const uint8_t kStatusReturnDefaultSize = 6;
-
 struct RegisterPosition {
   enum {
     /** EEPROM AREA **/
@@ -100,100 +95,79 @@ struct Error {
   };
 };
 
-class AX12Bus {
-  public:
-  AX12Bus(HardwareSerial& serial, uint32_t buad_rate, uint8_t direction_pin);
-  void setDirectionPinOutputLevelForTx(uint8_t level);
 
-  const uint8_t* getRxBuffer();
-  // const uint8_t* getRxIntBuffer();
+void init(HardwareSerial* serial, uint32_t buad_rate, uint8_t direction_pin);
+void setDirectionPinOutputLevelForTx(uint8_t level);
 
-  int16_t getRegister(uint8_t id, uint8_t regstart, uint8_t data_length);
-  bool setRegister(uint8_t id, uint8_t regstart, uint8_t data, bool read_response);
-  bool setRegister(uint8_t id, uint8_t regstart, uint16_t data, bool read_response);
+const uint8_t* getRxBuffer();
+// const uint8_t* getRxIntBuffer();
 
-  bool ping(uint8_t id);
-  bool setStagedInstruction(uint8_t id, uint8_t starting_register, uint8_t data, bool read_response);
-  bool setStagedInstruction(uint8_t id, uint8_t starting_register, uint16_t data, bool read_response);
-  void executeStagedInstructions();
+int16_t getRegister(uint8_t id, uint8_t regstart, uint8_t data_length);
+bool setRegister(uint8_t id, uint8_t regstart, uint8_t data, bool read_response);
+bool setRegister(uint8_t id, uint8_t regstart, uint16_t data, bool read_response);
 
-  void setupSyncWrite(uint8_t num_servos, uint8_t starting_register, uint8_t data_length, uint8_t* tx_buffer);
-  bool addToSyncWrite(uint8_t id, uint8_t data); // single byte version
-  bool addToSyncWrite(uint8_t id, uint16_t data); // double byte version
-  void addToSyncWrite(uint8_t id, const uint8_t* data); // for more than 2 bytes
-  bool executeSyncWrite();
+bool ping(uint8_t id);
+bool setStagedInstruction(uint8_t id, uint8_t starting_register, uint8_t data, bool read_response);
+bool setStagedInstruction(uint8_t id, uint8_t starting_register, uint16_t data, bool read_response);
+void executeStagedInstructions();
 
-  uint8_t getLastError();
+void setupSyncWrite(uint8_t num_servos, uint8_t starting_register, uint8_t data_length, uint8_t* tx_buffer);
+bool addToSyncWrite(uint8_t id, uint8_t data); // single byte version
+bool addToSyncWrite(uint8_t id, uint16_t data); // double byte version
+void addToSyncWrite(uint8_t id, const uint8_t* data); // for more than 2 bytes
+bool executeSyncWrite();
 
-  // Functions built on top of 'raw' instruction functions
-  void setStatusReturnLevel(uint8_t id, StatusReturnLevel::type srl);
+uint8_t getLastError();
 
-  void enableTorque(uint8_t servo_id);
-  void disableTorque(uint8_t servo_id);
+// Functions built on top of 'raw' instruction functions
+void setStatusReturnLevel(uint8_t id, StatusReturnLevel::type srl);
 
-  // TODO Read registers
-  //  May want to change the way that getRegister works first i.e. not fixed to return int16_t and -1 on failure
-  //uint16_t GetModelNumber(uint8_t servo_id);
-  //uint8_t GetFirmwareVersion(uint8_t servo_id);
-  //uint8_t GetID(uint8_t servo_id);
-  //uint8_t GetBaudRate(uint8_t servo_id);
-  //uint8_t GetReturnDelayTime(uint8_t servo_id);
-  //uint16_t GetCWAngleLimit(uint8_t servo_id);
-  //uint16_t GetCCWAngleLimit(uint8_t servo_id);
-  //uint8_t GetTemperatureLimitMaximum(uint8_t servo_id);
-  //uint8_t GetMinVoltageLimit(uint8_t servo_id);
-  //uint8_t GetMaxVoltageLimit(uint8_t servo_id);
-  //uint16_t GetMaxTorque(uint8_t servo_id);
-  //uint8_t GetStatusReturnLevel(uint8_t servo_id);
-  //uint8_t GetAlarmLED(uint8_t servo_id);
-  //uint8_t GetShutdown(uint8_t servo_id);
-  //uint8_t GetTorqueEnable(uint8_t servo_id);
-  //uint8_t GetLEDStatus(uint8_t servo_id);
-  //uint8_t GetCWComplianceMargin(uint8_t servo_id);
-  //uint8_t GetCCWComplianceMargin(uint8_t servo_id);
-  //uint8_t GetCWComplianceSlope(uint8_t servo_id);
-  //uint8_t GetCCWComplianceSlope(uint8_t servo_id);
-  //uint16_t GetGoalPosition(uint8_t servo_id);
-  //uint16_t GetMovingSpeed(uint8_t servo_id);
-  //uint16_t GetTorqueLimit(uint8_t servo_id);
-  //uint16_t GetPresentPosition(uint8_t servo_id);
-  //uint16_t GetPresentSpeed(uint8_t servo_id);
-  //uint16_t GetPresentLoad(uint8_t servo_id);
-  //uint8_t GetPresentVoltage(uint8_t servo_id);
-  //uint8_t GetPresentTemperature(uint8_t servo_id);
-  //uint8_t GetRegistered(uint8_t servo_id);
-  //uint8_t GetMoving(uint8_t servo_id);
-  //uint8_t GetLock(uint8_t servo_id);
-  //uint16_t GetPunch(uint8_t servo_id);
+void enableTorque(uint8_t servo_id);
+void disableTorque(uint8_t servo_id);
 
-
-  private:
-
-  void setTX();
-  void setRX();
-
-  // void write(uint8_t data);
-  void writeBufferOut(const uint8_t* buffer, uint8_t length);
-
-  bool readResponse(uint8_t length);
-
-  uint8_t rx_buffer[kBufferSize]; // used in readResponse and getRegister
-
-  // For sync write
-  uint8_t sync_write_num_servos_ = 0;
-  uint8_t sync_write_data_length_ = 0;
-  uint8_t sync_write_starting_register_;
-  uint8_t* sync_write_tx_buffer_;
-  uint8_t sync_write_tx_buffer_idx_;
-
-  uint8_t rx_error;
-
-  HardwareSerial& serial_;  
-  uint8_t direction_pin_;
-  uint8_t tx_level_ = LOW;
-};
+// TODO Read registers
+//  May want to change the way that getRegister works first i.e. not fixed to return int16_t and -1 on failure
+//uint16_t GetModelNumber(uint8_t servo_id);
+//uint8_t GetFirmwareVersion(uint8_t servo_id);
+//uint8_t GetID(uint8_t servo_id);
+//uint8_t GetBaudRate(uint8_t servo_id);
+//uint8_t GetReturnDelayTime(uint8_t servo_id);
+//uint16_t GetCWAngleLimit(uint8_t servo_id);
+//uint16_t GetCCWAngleLimit(uint8_t servo_id);
+//uint8_t GetTemperatureLimitMaximum(uint8_t servo_id);
+//uint8_t GetMinVoltageLimit(uint8_t servo_id);
+//uint8_t GetMaxVoltageLimit(uint8_t servo_id);
+//uint16_t GetMaxTorque(uint8_t servo_id);
+//uint8_t GetStatusReturnLevel(uint8_t servo_id);
+//uint8_t GetAlarmLED(uint8_t servo_id);
+//uint8_t GetShutdown(uint8_t servo_id);
+//uint8_t GetTorqueEnable(uint8_t servo_id);
+//uint8_t GetLEDStatus(uint8_t servo_id);
+//uint8_t GetCWComplianceMargin(uint8_t servo_id);
+//uint8_t GetCCWComplianceMargin(uint8_t servo_id);
+//uint8_t GetCWComplianceSlope(uint8_t servo_id);
+//uint8_t GetCCWComplianceSlope(uint8_t servo_id);
+//uint16_t GetGoalPosition(uint8_t servo_id);
+//uint16_t GetMovingSpeed(uint8_t servo_id);
+//uint16_t GetTorqueLimit(uint8_t servo_id);
+//uint16_t GetPresentPosition(uint8_t servo_id);
+//uint16_t GetPresentSpeed(uint8_t servo_id);
+//uint16_t GetPresentLoad(uint8_t servo_id);
+//uint8_t GetPresentVoltage(uint8_t servo_id);
+//uint8_t GetPresentTemperature(uint8_t servo_id);
+//uint8_t GetRegistered(uint8_t servo_id);
+//uint8_t GetMoving(uint8_t servo_id);
+//uint8_t GetLock(uint8_t servo_id);
+//uint16_t GetPunch(uint8_t servo_id);
 
 
+void setTX();
+void setRX();
+
+// void write(uint8_t data);
+void writeBufferOut(const uint8_t* buffer, uint8_t length);
+
+bool readResponse(uint8_t length);
 
 } // namespace
 
